@@ -3,7 +3,7 @@
 
 This is a pipeline that makes it easy to process data from the ThermoFisher Multiskan Skyhigh plate readers. It relies heavily on the **tidyverse** and **gcplyr**.
 
-## Help us improve this repository
+## Help improve this repository
 
 If you have suggestions for how the code (or pipeline more generally) can be improved please open an [Issue](https://github.com/padpadpadpad/multiskan_skyhigh_od_pipeline/issues).
 
@@ -35,11 +35,15 @@ Each script has a section called "things to change". Specifically:
 - **01_process_od.R**: Need to make sure you are reading in the right files and that you set `output` to be the correct name for the output file. 
 - **02_visualise_runs.R**: Need to make sure you are reading in the right files. A good rule of thumb is to set `input` to be the same as `output` from **01_process_od.R**.
 
+## Individual scripts
 
-## Individual files
+### The pipeline
 
 - **00_functions.R**: contains helper functions that are used in other scripts.
 - **01_process_od.R**: processes raw data files from the MultiSkan SkyHigh plate reader. 
 - **02_visualise_runs.R**: Visualises the raw data from a run of a MultiSkan Skyhigh plate readers. Creates a pdf of the raw data in `plots/first_look_plots`. At this stage it might be useful to look at each plot and note down specific well by file combinations that have failed/have poor data to remove from downstream analyses.
 - **03_analyse.R**
-- **04_tpcs.R**
+
+### Extras
+
+- **04_tpcs.R**: a script that demonstrates how to fit thermal performance curves to microbial growth rate data.

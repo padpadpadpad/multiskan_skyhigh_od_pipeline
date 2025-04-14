@@ -45,13 +45,20 @@ librarian::shelf(tidyverse, readxl)
 # load in extra functions
 source('scripts/00_functions.R')
 
-#-----------------#
-# read in data ####
-#-----------------#
+#---------------------#
+# things to change ####
+#---------------------#
 
 # list files in 
 # change this to only be the correct files 
-files <- list.files('data/raw/Run 1 07 02 2025', full.names = TRUE, pattern = 'xlsx')
+files <- list.files('data/raw', full.names = TRUE, pattern = 'xlsx')
+
+# set output name
+output <- 'output.csv'
+
+#-----------------#
+# read in data ####
+#-----------------#
 
 # remove file if there is a $ in the name - means they are temporary
 files <- files[!grepl('\\$', files)]
@@ -64,12 +71,9 @@ d_od <- map_df(files, get_od) %>%
 d_info <- map_df(files, get_info)
 
 # bind all the runlog data - using get_runlog() - can see how it works in 00_functions.R
-# this info seems to be different on different machines - maybe bin it off as not overly needed
-
-#d_runlog <- map_df(files, possibly(get_runlog))
+d_runlog <- map_df(files, possibly(get_runlog))
 # check which files are not in d_runlog
-#no_runlog <- files[!tools::file_path_sans_ext(basename(files)) %in% unique(d_runlog$file)]
-# 36ºC, serial number 1550-802208 has no run log
+no_runlog <- files[!tools::file_path_sans_ext(basename(files)) %in% unique(d_runlog$file)]
 
 # read in master plates
 # d_master_plates
@@ -91,15 +95,11 @@ d_od <- left_join(d_od, d_serial)
 
 # split the file name of d_od to its useful parts
 d_od <- d_od %>%
-  # split file name based on each _
-  separate(file, c('run', 'temp'), sep = '_') %>%
-  mutate(temp = parse_number(temp)) %>%
-  # only keep certain columns
-  select(run, serial_no, measurement_time_s, temp, wavelength_nm, well, raw_absorbance, id)
+  select(file, serial_no, measurement_time_s, wavelength_nm, well, raw_absorbance, id)
 
 # convert time to minutes and hours
 d_od <- mutate(d_od, measurement_time_min = measurement_time_s/60,
                measurement_time_hr = measurement_time_min/60)
 
 # save out data
-write.csv(d_od, 'data/processed/od_data_raw_run1.csv', row.names = FALSE)
+write.csv(d_od, file.path('data/processed', output), row.names = FALSE)

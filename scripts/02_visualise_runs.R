@@ -1,10 +1,9 @@
 # ---------------------------
-# Purpose of script: Create a couple of different visualisations for OD readings from the Multiskan Skyhigh
+# Purpose of script: Create a visualisations for raw OD readings from the Multiskan Skyhigh
 #
 # What this script does:
 # 1. Loads in data
-# 2. Creates a plot for each run on each plate reader, with each well as a separate facet
-# 3. Creates a plot for each combination of temperature x run, with all wells combined
+# 2. Creates a plot for each file, with all wells combined
 #
 # Author: Dr. Daniel Padfield
 #
@@ -40,31 +39,30 @@ librarian::shelf(tidyverse)
 
 ## ---------------------------
 
-# load in data ####
+#---------------------#
+# things to change ####
+#---------------------#
 
 # set run, this will be used to label the plots
-run <- 'run2'
+# should be the same as output from 01_process_od.R
+input <- 'output.csv'
+input_no_ext <- tools::file_path_sans_ext(input)
 
 # change this as needed
-d_od <- read.csv('data/processed/od_data_raw_run2.csv')
+d_od <- read.csv(file.path("data/processed", input))
 
-# plot line for each well across each temperature
-d_od %>%
-  ggplot(aes(x = measurement_time_hr, y = raw_absorbance, group = well)) +
-  geom_line() +
-  facet_wrap(~temp) +
-  theme_bw()
+#---------------------#
 
 # plot each well across each combination of factors ####
 
 # create an ID column for each plate
 d_od <- d_od %>%
-  mutate(plate_id = paste(run, temp, serial_no, sep = '_'))
+  mutate(plate_id = paste(file, serial_no, sep = '_'))
 
 plate_ids <- unique(d_od$plate_id)
 
 # open a pdf
-pdf(file.path('plots', paste('check_od_raw_', run, '.pdf', sep = '')), width = 10, height = 6.5)
+pdf(file.path('plots/first_look_plots', paste('check_od_raw_', input_no_ext, '.pdf', sep = '')), width = 10, height = 6.5)
 
 for(i in 1:length(plate_ids)){
   

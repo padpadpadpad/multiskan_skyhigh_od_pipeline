@@ -42,7 +42,7 @@ Each script has a section called "things to change". Specifically:
 - **00_functions.R**: contains helper functions that are used in other scripts.
 - **01_process_od.R**: processes raw data files from the MultiSkan SkyHigh plate reader. 
 - **02_visualise_runs.R**: Visualises the raw data from a run of a MultiSkan Skyhigh plate readers. Creates a pdf of the raw data in `plots/first_look_plots`. At this stage it might be useful to look at each plot and note down specific well by file combinations that have failed/have poor data to remove from downstream analyses.
-- **03_analyse.R**
+- **03_analyse.R**: Calculates growth metrics from the processed datasets. Creates visualisations of the processed datasets indicating the position of lag time, maximum growth rate, and maximum density in each well of a plate.
 
 ### Extras
 

@@ -1,7 +1,7 @@
 
 # MultiSkan SkyHigh OD pipeline
 
-This is a pipeline that makes it easy to process data from the ThermoFisher Multiskan Skyhigh plate readers. It relies heavily on the **tidyverse** and **gcplyr**.
+This is a pipeline that makes it easy to process data from the ThermoFisher Multiskan Skyhigh plate readers. It relies heavily on the [**tidyverse**](https://tidyverse.tidyverse.org/) and [**gcplyr**](https://mikeblazanin.github.io/gcplyr/). I recommend reading the walkthroughs within **gcplyr** for an in-depth description of how it works and things you need to think about!
 
 ## Help improve this repository
 

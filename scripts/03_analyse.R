@@ -43,6 +43,10 @@ librarian::shelf(tidyverse, growthrates, gcplyr)
 
 ## ---------------------------
 
+#---------------------#
+# things to change ####
+#---------------------#
+
 # name of files to read in
 file_names <- list.files('data/processed', full.names = TRUE, pattern = 'od_data')
 
@@ -50,42 +54,56 @@ file_names <- list.files('data/processed', full.names = TRUE, pattern = 'od_data
 d <- file_names %>% map_df(read.csv)
 
 # check the number of unique combinations there should be
-select(d, run, well, temp, id, serial_no) %>%
+select(d, file, well, id, serial_no) %>%
   distinct() %>%
   nrow() 
 
 # set up your grouping variables to get each individual well for each plate
 # this bit is interactive
-groupings <- c("run", "temp", "well", "serial_no", "id")
+groupings <- c("file", "well", "serial_no", "id")
+
+# set blank method: options are: well_specific or blank_median
+blank_method <- "blank_median"
+
+# output name
+output <- 'all_growth_metrics.csv'
+
+# window_width - set to calculate a rolling regression over the course of an hour
+measurements_every_X_min = 4
+window_width = 60/measurements_every_X_min
+rm(measurements_every_X_min)
+
+#---------------------#
 
 #---------------------#
 # calculate blanks ####
 #---------------------#
 
-# method 1: create a well-specific blank. Not sure this is useable for this dataset
-
-# take the first three time points 
-# 8 minutes
-# average per well per temperature
-d_blank <- d %>%
-  group_by(across(all_of(groupings))) %>%
-  filter(measurement_time_hr %in% sort(measurement_time_hr)[1:3]) %>%
-  summarise(mean_blank = mean(raw_absorbance),
-            sd_blank = sd(raw_absorbance),
-            .groups = 'drop')
+# method 1: create a well-specific blank
+if(blank_method == "well_specific"){
+  # take the first three time points 
+  # average per grouping
+  d_blank <- d %>%
+    group_by(across(all_of(groupings))) %>%
+    filter(measurement_time_hr %in% sort(measurement_time_hr)[1:3]) %>%
+    summarise(ave_blank = mean(raw_absorbance),
+              sd_blank = sd(raw_absorbance),
+              .groups = 'drop')
+}
 
 # method 2 Calculate blank from average of all blank wells in each plate
-outside_wells <- c('A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12', 'B1', 'B12', 'C1', 'C12', 'D1', 'D12', 'E1', 'E12', 'F1', 'F12', 'G1', 'G12', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8', 'H9', 'H10', 'H11', 'H12')
-
 # use the median
-d_blank <- d %>%
-  filter(! well %in% outside_wells) %>%
-  filter(substr(id, 1, 1) == "X") %>%
-  group_by(across(all_of(groupings[!groupings %in% c('well', 'id')]))) %>%
-  summarise(ave_blank = median(raw_absorbance),
-            sd_blank = sd(raw_absorbance),
-            .groups = 'drop')
+if(blank_method == "blank_median"){
+  d_blank <- d %>%
+    filter(! well %in% outside_wells) %>%
+    filter(substr(id, 1, 1) == "X") %>%
+    group_by(across(all_of(groupings[!groupings %in% c('well', 'id')]))) %>%
+    summarise(ave_blank = median(raw_absorbance),
+              sd_blank = sd(raw_absorbance),
+              .groups = 'drop')
+}
 
+# visualise average blank  
 hist(d_blank$ave_blank)
 
 #-----------------#
@@ -107,6 +125,7 @@ d_filt <- filter(d, substr(id, 1, 1) != "X")
 # remove any od values below certain value - remove some noise
 d_filt2 <- filter(d_filt, od_cor > 0.005)
 
+# quick plot of data ####
 d_filt %>%
   ggplot(aes(x = measurement_time_hr, y = od_cor, group = interaction(well, run))) +
   geom_line(alpha = 0.3) +
@@ -135,7 +154,7 @@ d_filt2 <- d_filt2 %>%
                                    y = od_cor,
                                    percapita = TRUE, 
                                    blank=0,
-                                   window_width_n = 15,
+                                   window_width_n = window_width,
                                    trans_y = "log")) %>%
   ungroup()
 
@@ -148,12 +167,12 @@ d_sum <- d_filt2 %>%
                                 deriv = deriv_percap,
                                 blank=0,
                                 y0 = min_dens),
-            max_percap = max_gc(deriv_percap, na.rm = TRUE),
-            max_percap_time = extr_val(measurement_time_hr, which_max_gc(deriv_percap)),
-            max_percap_dens = extr_val(od_cor, which_max_gc(deriv_percap)),
+            gr = max_gc(deriv_percap, na.rm = TRUE),
+            gr_time = extr_val(measurement_time_hr, which_max_gc(deriv_percap)),
+            gr_dens = extr_val(od_cor, which_max_gc(deriv_percap)),
             max_dens = max_gc(od_cor, na.rm = TRUE),
             max_time = extr_val(measurement_time_hr, which_max_gc(od_cor)),
-            doub_time = doubling_time(y = max_percap),
+            doub_time = doubling_time(y = gr),
             auc = auc(y = od_cor, x = measurement_time_hr),
             .groups = 'drop')
 
@@ -165,7 +184,7 @@ if (nrow(d_sum) == n_expected) {
 }
 
 # save this out ####
-write_csv(d_sum, "data/processed/all_growth_metrics.csv")
+write_csv(d_sum, file.path('data/processed', output), row.names = FALSE)
 
 #----------------------#
 # Visualise metrics ####
@@ -203,7 +222,7 @@ for(i in 1:length(runs)){
         ggplot(aes(x = measurement_time_hr, y = log(od_cor))) +
         geom_line() +
         geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
-        geom_point(aes(max_percap_time, log(max_percap_dens)), temp_params, col = 'red') +
+        geom_point(aes(gc_time, log(gc_dens)), temp_params, col = 'red') +
         geom_point(aes(max_time, log(max_dens)), temp_params, col = 'blue') +
         geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
         facet_grid(column~row, switch = 'y') +
@@ -251,7 +270,7 @@ for(i in 1:length(runs)){
       ggplot(aes(x = measurement_time_hr, y = od_cor)) +
       geom_line() +
       geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
-      geom_point(aes(max_percap_time, max_percap_dens), temp_params, col = 'red') +
+      geom_point(aes(gc_time, gc_dens), temp_params, col = 'red') +
       geom_point(aes(max_time, max_dens), temp_params, col = 'blue') +
       geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
       facet_grid(column~row, switch = 'y') +
@@ -268,53 +287,6 @@ for(i in 1:length(runs)){
 }
 
 dev.off()
-
-#--------------#
-# ends here ####
-#--------------#
-
-# make plot to visualise metrics
-temp_od <- filter(d_filt, run == 'Run3' & temp == 30) |>
-  mutate(column = str_extract(well, "[A-Z]+" ),
-         row = parse_number(well))
-
-temp_params <- filter(d_sum, run == 'Run3' & temp == 30) |>
-  mutate(column = str_extract(well, "[A-Z]+" ),
-         row = parse_number(well))
-
-temp_id <- select(temp_od, column, row, id) %>%
-  distinct() %>%
-  mutate(x = 0, y = 1)
-
-
-temp_plot <- temp_od %>%
-  ggplot(aes(x = measurement_time_hr, y = log(od_cor))) +
-  geom_line() +
-  geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
-  geom_point(aes(max_percap_time, log(max_percap_dens)), temp_params, col = 'red') +
-  geom_point(aes(max_time, log(max_dens)), temp_params, col = 'blue') +
-  #geom_label(aes(x = 0, y = 1, label = id), temp_id, hjust = 0, label.size = NA) +
-  facet_grid(column~row, switch = 'y') +
-  theme_bw() +
-  labs(x = 'Time (hr)',
-       y = 'log Absorbance (OD600)') +
-  #ylim(c(0, 1.25)) +
-  NULL
-
-print(temp_plot)
-
-
-# make a plot of the lag time and growth rate to show the pattern of per capita growth
-
-# set sample well
-sample_well = 'B2'
-
-filter(d_filt, well == sample_well & measurement_time_hr < 10 & run == sample(run, 1) & od_cor > 0.005) %>%
-  ggplot(aes(x = measurement_time_hr, y = log(od_cor))) +
-  geom_point() +
-  facet_wrap(~temp) +
-  NULL
-
 
 #----------------------------#
 # calculate model metrics ####

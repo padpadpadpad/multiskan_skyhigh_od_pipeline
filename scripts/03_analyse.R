@@ -48,10 +48,12 @@ librarian::shelf(tidyverse, growthrates, gcplyr)
 #---------------------#
 
 # name of files to read in
-file_names <- list.files('data/processed', full.names = TRUE, pattern = 'od_data')
+file_names <- list.files('data/processed', full.names = TRUE)
 
 # read in data
 d <- file_names %>% map_df(read.csv)
+
+# split file identifier if needed
 
 # check the number of unique combinations there should be
 select(d, file, well, id, serial_no) %>%
@@ -93,6 +95,7 @@ if(blank_method == "well_specific"){
 
 # method 2 Calculate blank from average of all blank wells in each plate
 # use the median
+# assumes all blanks start with X
 if(blank_method == "blank_median"){
   d_blank <- d %>%
     filter(! well %in% outside_wells) %>%
@@ -131,6 +134,22 @@ d_filt %>%
   geom_line(alpha = 0.3) +
   facet_wrap(~temp) +
   theme_bw()
+
+#--------------------------------------------------------------#
+# remove samples because of biologically implausible signal ####
+#--------------------------------------------------------------#
+
+# from the plots in first_look_plots, you can remove some wells that have biologically implausible signal (e.g. massive spikes) that are not going to be easy to model and will give poor estimates
+
+# create unique ID of file and well
+d_filt2 <- d_filt2 %>%
+  mutate(plate_well_id = paste(file, well, sep = '_'))
+
+to_remove <- c()
+
+# remove these wells
+d_filt2 <- d_filt2 %>%
+  filter(!plate_well_id %in% to_remove)
 
 # calculate the expected number of rows in the output - 1 per group
 n_expected <- select(d_filt2, all_of(groupings)) %>%
@@ -184,7 +203,7 @@ if (nrow(d_sum) == n_expected) {
 }
 
 # save this out ####
-write_csv(d_sum, file.path('data/processed', output), row.names = FALSE)
+write.csv(d_sum, file.path('data/metrics', output), row.names = FALSE)
 
 #----------------------#
 # Visualise metrics ####
@@ -222,7 +241,7 @@ for(i in 1:length(runs)){
         ggplot(aes(x = measurement_time_hr, y = log(od_cor))) +
         geom_line() +
         geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
-        geom_point(aes(gc_time, log(gc_dens)), temp_params, col = 'red') +
+        geom_point(aes(gr_time, log(gr_dens)), temp_params, col = 'red') +
         geom_point(aes(max_time, log(max_dens)), temp_params, col = 'blue') +
         geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
         facet_grid(column~row, switch = 'y') +
@@ -270,7 +289,7 @@ for(i in 1:length(runs)){
       ggplot(aes(x = measurement_time_hr, y = od_cor)) +
       geom_line() +
       geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
-      geom_point(aes(gc_time, gc_dens), temp_params, col = 'red') +
+      geom_point(aes(gr_time, gr_dens), temp_params, col = 'red') +
       geom_point(aes(max_time, max_dens), temp_params, col = 'blue') +
       geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
       facet_grid(column~row, switch = 'y') +

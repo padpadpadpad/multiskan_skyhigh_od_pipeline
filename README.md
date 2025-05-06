@@ -34,7 +34,7 @@ Each script has a section called "things to change". Specifically:
 
 - **01_process_od.R**: Need to make sure you are reading in the right files and that you set `output` to be the correct name for the output file. 
 - **02_visualise_runs.R**: Need to make sure you are reading in the right files. A good rule of thumb is to set `input` to be the same as `output` from **01_process_od.R**.
-- **03_analyse.R**: 
+- **03_analyse_gcplyr.R**: 
     - Need to make sure you are reading in the right files. You may want to split up the column named `file` into the different treatments. This can be done using **tidyr::separate()**. If you do this, you may want to change the variables in `groupings` to reflect this.
     - You can set the method for calculating blanks to either `blank_median` or `well_specific`. It is `blank_median` by default, which takes all the blanks per plate and calculates the median and sd of `raw_absorbance`. If there are any contaminated blanks you should check WHY and remove them. The `well_specific` method calculates the mean `raw_absorbance` from the first three time points of each well, representing a well-specific blank. This is based on guidance from [Atolia (2020) mBio](https://journals.asm.org/doi/10.1128/mbio.01378-20). Using the first few timepoints to subtract was used by [Govers (2024) Cell Systems](https://www.cell.com/cell-systems/fulltext/S2405-4712(23)00331-9). This method relies on cultures not yet reaching their detectable range.
     - Set how often the plate reader was taking measurements (assumed to be ubiquitous across all runs). Sets window width as number of measurements in 1 hour.
@@ -42,6 +42,12 @@ Each script has a section called "things to change". Specifically:
     - At ~Line 137 there is a section that allows you to remove wells that have biologically implausible signal. This could mean a massive spike in the OD reading that will likely result in poor modelling. If you have enough replicates, you should be able to afford to lose a couple of wells that are perhaps behaving badly. You need to input the IDs of the wells that are to be removed.
     - At ~Line 196 there is a check to see if the number of rows for the output is as expected. If not need to do some troubleshooting!
     - From ~Line 210 to ~Line 306, a for loop creates a pdfs of each plate with the estimated growth metrics placed on top of the raw data. This code currently needs a lot of editing to make sure your grouping variables are correct. It currently assumes you have different runs and temperatures within runs.
+- **04_analyse_growthmodels.R**: 
+    - Need to make sure you are reading in the right files. You may want to split up the column named `file` into the different treatments. This can be done using **tidyr::separate()**. If you do this, you may want to change the variables in `groupings` to reflect this.
+    - You can set the method for calculating blanks to either `blank_median` or `well_specific`. It is `blank_median` by default, which takes all the blanks per plate and calculates the median and sd of `raw_absorbance`. If there are any contaminated blanks you should check WHY and remove them. The `well_specific` method calculates the mean `raw_absorbance` from the first three time points of each well, representing a well-specific blank. This is based on guidance from [Atolia (2020) mBio](https://journals.asm.org/doi/10.1128/mbio.01378-20). Using the first few timepoints to subtract was used by [Govers (2024) Cell Systems](https://www.cell.com/cell-systems/fulltext/S2405-4712(23)00331-9). This method relies on cultures not yet reaching their detectable range.
+    - Set how often the plate reader was taking measurements (assumed to be ubiquitous across all runs). Sets window width as number of measurements in 1 hour.
+    - At ~Line 137 there is a section that allows you to remove wells that have biologically implausible signal. This could mean a massive spike in the OD reading that will likely result in poor modelling. If you have enough replicates, you should be able to afford to lose a couple of wells that are perhaps behaving badly. You need to input the IDs of the wells that are to be removed.
+    - From ~Line 420, a for loop creates a pdfs of each plate with the estimated growth curves placed on top of the raw data. This code currently needs a lot of editing to make sure your grouping variables are correct. It currently assumes you have different runs and temperatures within runs.
 
 ## Individual scripts
 
@@ -50,10 +56,14 @@ Each script has a section called "things to change". Specifically:
 - **00_functions.R**: contains helper functions that are used in other scripts.
 - **01_process_od.R**: processes raw data files from the MultiSkan SkyHigh plate reader. 
 - **02_visualise_runs.R**: Visualises the raw data from a run of a MultiSkan Skyhigh plate readers. Creates a pdf of the raw data in `plots/first_look_plots`. At this stage it might be useful to look at each plot and note down specific well by file combinations that have failed/have poor data to remove from downstream analyses. And also check whether any of your blanks have been contaminated.
-- **03_analyse.R**: Calculates growth metrics from the processed datasets and creates visualisations of the processed datasets indicating the position of lag time, maximum growth rate, and maximum density in each well of a plate.
+- **03_analyse_gcplyr.R**: Calculates growth metrics from the processed datasets and creates visualisations of the processed datasets indicating the position of lag time, maximum growth rate, and maximum density in each well of a plate.
     - Currently used **gcplyr** to calculate max growth rate, minimum density, lag time, time at which max growth rate was estimated, density at which max growth rate was calculated, maximum density, time at which max density was reached, doubling time, and area under the curve.
     - Makes visualisation of the growth metrics on the raw and log scale for corrected OD. Needs a lot of changing based on the treatments and grouping variables you have.
+- **04_analyse_growthmodels.R**: Fits growth models to the processed datasets and creates a visualisation of the processed dataset with fitted curves to the data.
+    - Takes the model formulations from [**growthrates**](https://github.com/tpetzoldt/growthrates) and fits them using [**nls.multstart**](https://github.com/padpadpadpad/nls.multstart). Currently it fits the logisitc, gompertz, baranyi, richards, and huang models. 
+    - When fitting, it sets parameter limits based on the data and biologically implausible values. For all models, it sets the upper limit on **n0** - the initial density - to be between the lowest non-zero value.
+    - Makes visualistion of all models on a plate by plate basis. This code needs changing based on the grouping variables you have.
     
 ### Extras
 
-- **04_tpcs.R**: a script that demonstrates how to fit thermal performance curves to microbial growth rate data.
+- **XX_tpcs.R**: a script that demonstrates how to fit thermal performance curves to microbial growth rate data.

@@ -24,21 +24,22 @@
 # ---------------------------
 
 # if librarian is not installed, install it
-if (!requireNamespace("librarian", quietly = TRUE)){
+if (!requireNamespace("librarian", quietly = TRUE)) {
   install.packages("librarian")
 }
 
 # if BiocManager is not installed, install it
-if (!requireNamespace("BiocManager", quietly = TRUE)){
-install.packages("BiocManager")
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
 }
 
 # if Biobase is not installed, install it from Bioconductor
-if (!requireNamespace("Biobase", quietly = TRUE)){
-BiocManager::install("Biobase")
+if (!requireNamespace("Biobase", quietly = TRUE)) {
+  BiocManager::install("Biobase")
 }
 
 # load packages
+# fmt: skip
 librarian::shelf(tidyverse, growthrates, gcplyr)
 
 ## ---------------------------
@@ -58,7 +59,7 @@ d <- file_names %>% map_df(read.csv)
 # check the number of unique combinations there should be
 select(d, file, well, id, serial_no) %>%
   distinct() %>%
-  nrow() 
+  nrow()
 
 # set up your grouping variables to get each individual well for each plate
 # this bit is interactive
@@ -72,7 +73,7 @@ output <- 'all_growth_metrics.csv'
 
 # window_width - set to calculate a rolling regression over the course of an hour
 measurements_every_X_min = 4
-window_width = 60/measurements_every_X_min
+window_width = 60 / measurements_every_X_min
 rm(measurements_every_X_min)
 
 #---------------------#
@@ -82,31 +83,35 @@ rm(measurements_every_X_min)
 #---------------------#
 
 # method 1: create a well-specific blank
-if(blank_method == "well_specific"){
-  # take the first three time points 
+if (blank_method == "well_specific") {
+  # take the first three time points
   # average per grouping
   d_blank <- d %>%
     group_by(across(all_of(groupings))) %>%
     filter(measurement_time_hr %in% sort(measurement_time_hr)[1:3]) %>%
-    summarise(ave_blank = mean(raw_absorbance),
-              sd_blank = sd(raw_absorbance),
-              .groups = 'drop')
+    summarise(
+      ave_blank = mean(raw_absorbance),
+      sd_blank = sd(raw_absorbance),
+      .groups = 'drop'
+    )
 }
 
 # method 2 Calculate blank from average of all blank wells in each plate
 # use the median
 # assumes all blanks start with X
-if(blank_method == "blank_median"){
+if (blank_method == "blank_median") {
   d_blank <- d %>%
-    filter(! well %in% outside_wells) %>%
+    filter(!well %in% outside_wells) %>%
     filter(substr(id, 1, 1) == "X") %>%
     group_by(across(all_of(groupings[!groupings %in% c('well', 'id')]))) %>%
-    summarise(ave_blank = median(raw_absorbance),
-              sd_blank = sd(raw_absorbance),
-              .groups = 'drop')
+    summarise(
+      ave_blank = median(raw_absorbance),
+      sd_blank = sd(raw_absorbance),
+      .groups = 'drop'
+    )
 }
 
-# visualise average blank  
+# visualise average blank
 hist(d_blank$ave_blank)
 
 #-----------------#
@@ -130,7 +135,11 @@ d_filt2 <- filter(d_filt, od_cor > 0.005)
 
 # quick plot of data ####
 d_filt %>%
-  ggplot(aes(x = measurement_time_hr, y = od_cor, group = interaction(well, run))) +
+  ggplot(aes(
+    x = measurement_time_hr,
+    y = od_cor,
+    group = interaction(well, run)
+  )) +
   geom_line(alpha = 0.3) +
   facet_wrap(~temp) +
   theme_bw()
@@ -169,31 +178,39 @@ n_expected
 # this group by is the important step here, needs to contain all the variables to get a single well
 d_filt2 <- d_filt2 %>%
   group_by(across(all_of(groupings))) %>%
-  mutate(deriv_percap = calc_deriv(x = measurement_time_hr, 
-                                   y = od_cor,
-                                   percapita = TRUE, 
-                                   blank=0,
-                                   window_width_n = window_width,
-                                   trans_y = "log")) %>%
+  mutate(
+    deriv_percap = calc_deriv(
+      x = measurement_time_hr,
+      y = od_cor,
+      percapita = TRUE,
+      blank = 0,
+      window_width_n = window_width,
+      trans_y = "log"
+    )
+  ) %>%
   ungroup()
 
 # calculate growth metrics
 d_sum <- d_filt2 %>%
   group_by(across(all_of(groupings))) %>%
-  summarise(min_dens = first_minima(od_cor, return = 'y'),
-            lag_time = lag_time(y = od_cor,
-                                x = measurement_time_hr,
-                                deriv = deriv_percap,
-                                blank=0,
-                                y0 = min_dens),
-            gr = max_gc(deriv_percap, na.rm = TRUE),
-            gr_time = extr_val(measurement_time_hr, which_max_gc(deriv_percap)),
-            gr_dens = extr_val(od_cor, which_max_gc(deriv_percap)),
-            max_dens = max_gc(od_cor, na.rm = TRUE),
-            max_time = extr_val(measurement_time_hr, which_max_gc(od_cor)),
-            doub_time = doubling_time(y = gr),
-            auc = auc(y = od_cor, x = measurement_time_hr),
-            .groups = 'drop')
+  summarise(
+    min_dens = first_minima(od_cor, return = 'y'),
+    lag_time = lag_time(
+      y = od_cor,
+      x = measurement_time_hr,
+      deriv = deriv_percap,
+      blank = 0,
+      y0 = min_dens
+    ),
+    gr = max_gc(deriv_percap, na.rm = TRUE),
+    gr_time = extr_val(measurement_time_hr, which_max_gc(deriv_percap)),
+    gr_dens = extr_val(od_cor, which_max_gc(deriv_percap)),
+    max_dens = max_gc(od_cor, na.rm = TRUE),
+    max_time = extr_val(measurement_time_hr, which_max_gc(od_cor)),
+    doub_time = doubling_time(y = gr),
+    auc = auc(y = od_cor, x = measurement_time_hr),
+    .groups = 'drop'
+  )
 
 # run a check to see if the number of rows is as expected
 if (nrow(d_sum) == n_expected) {
@@ -213,31 +230,32 @@ write.csv(d_sum, file.path('data/metrics', output), row.names = FALSE)
 runs <- unique(d_filt$run)
 
 # open a pdf
-pdf(file.path('plots', paste('check_gcplyr_log', '.pdf', sep = '')), width = 10, height = 6.5)
+pdf(
+  file.path('plots', paste('check_gcplyr_log', '.pdf', sep = '')),
+  width = 10,
+  height = 6.5
+)
 
-for(i in 1:length(runs)){
-  
+for (i in 1:length(runs)) {
   temp_od <- filter(d_filt, run == runs[i]) |>
-    mutate(column = str_extract(well, "[A-Z]+" ),
-           row = parse_number(well))
-  
+    mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
+
   temp_temps <- unique(temp_od$temp)
-  
+
   # create a plot for each temperature
-  for(j in 1:length(temp_temps)){
-      
-      temp_od2 <- temp_od |> 
-        filter(temp == temp_temps[j])
-      
-      temp_params <- filter(d_sum, run == runs[i] & temp == temp_temps[j]) %>%
-        mutate(column = str_extract(well, "[A-Z]+" ),
-               row = parse_number(well))
-      
-      temp_id <- select(temp_od2, column, row, id) %>%
-        distinct() %>%
-        mutate(x = 0, y = 1)
-      
-      temp_plot <- temp_od2 %>%
+  for (j in 1:length(temp_temps)) {
+    temp_od2 <- temp_od |>
+      filter(temp == temp_temps[j])
+
+    temp_params <- filter(d_sum, run == runs[i] & temp == temp_temps[j]) %>%
+      mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
+
+    temp_id <- select(temp_od2, column, row, id) %>%
+      distinct() %>%
+      mutate(x = 0, y = 1)
+
+    # fmt: skip
+    temp_plot <- temp_od2 %>%
         ggplot(aes(x = measurement_time_hr, y = log(od_cor))) +
         geom_line() +
         geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
@@ -251,9 +269,8 @@ for(i in 1:length(runs)){
              y = 'log Absorbance (OD600)') +
         ylim(c(min(log(temp_od2$od_cor)[is.finite(log(temp_od2$od_cor))]), 1.25)) +
         NULL
-      
-      print(temp_plot)
-      
+
+    print(temp_plot)
   }
 }
 
@@ -261,30 +278,31 @@ dev.off()
 
 # do the same plot but unlogged
 # open a pdf
-pdf(file.path('plots', paste('check_gcplyr_nolog', '.pdf', sep = '')), width = 10, height = 6.5)
+pdf(
+  file.path('plots', paste('check_gcplyr_nolog', '.pdf', sep = '')),
+  width = 10,
+  height = 6.5
+)
 
-for(i in 1:length(runs)){
-  
+for (i in 1:length(runs)) {
   temp_od <- filter(d_filt, run == runs[i]) |>
-    mutate(column = str_extract(well, "[A-Z]+" ),
-           row = parse_number(well))
-  
+    mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
+
   temp_temps <- unique(temp_od$temp)
-  
+
   # create a plot for each temperature
-  for(j in 1:length(temp_temps)){
-    
-    temp_od2 <- temp_od |> 
+  for (j in 1:length(temp_temps)) {
+    temp_od2 <- temp_od |>
       filter(temp == temp_temps[j])
-    
+
     temp_params <- filter(d_sum, run == runs[i] & temp == temp_temps[j]) %>%
-      mutate(column = str_extract(well, "[A-Z]+" ),
-             row = parse_number(well))
-    
+      mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
+
     temp_id <- select(temp_od2, column, row, id) %>%
       distinct() %>%
       mutate(x = 0, y = 1)
-    
+
+    # fmt: skip
     temp_plot <- temp_od2 %>%
       ggplot(aes(x = measurement_time_hr, y = od_cor)) +
       geom_line() +
@@ -299,16 +317,9 @@ for(i in 1:length(runs)){
            y = 'Absorbance (OD600)') +
       ylim(c(min(temp_od2$od_cor[is.finite(temp_od2$od_cor)]), 1.25)) +
       NULL
-    
+
     print(temp_plot)
-    
   }
 }
 
 dev.off()
-
-#----------------------------#
-# calculate model metrics ####
-#----------------------------#
-
-# fit a bunch of parametric non-linear models

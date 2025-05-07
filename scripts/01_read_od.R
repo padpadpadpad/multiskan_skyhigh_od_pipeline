@@ -23,18 +23,18 @@
 # ---------------------------
 
 # if librarian is not installed, install it
-if (!requireNamespace("librarian", quietly = TRUE)){
+if (!requireNamespace("librarian", quietly = TRUE)) {
   install.packages("librarian")
 }
 
 # if BiocManager is not installed, install it
-if (!requireNamespace("BiocManager", quietly = TRUE)){
-install.packages("BiocManager")
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
 }
 
 # if Biobase is not installed, install it from Bioconductor
-if (!requireNamespace("Biobase", quietly = TRUE)){
-BiocManager::install("Biobase")
+if (!requireNamespace("Biobase", quietly = TRUE)) {
+  BiocManager::install("Biobase")
 }
 
 # load packages
@@ -49,8 +49,8 @@ source('scripts/00_functions.R')
 # things to change ####
 #---------------------#
 
-# list files in 
-# change this to only be the correct files 
+# list files in
+# change this to only be the correct files
 files <- list.files('data/raw', full.names = TRUE, pattern = 'xlsx')
 
 # set output name
@@ -65,7 +65,7 @@ files <- files[!grepl('\\$', files)]
 
 # bind together all the OD data using get_od() - can see how it works in 00_functions.R
 d_od <- map_df(files, get_od) %>%
-  mutate(well =  gsub(" ", "", well))
+  mutate(well = gsub(" ", "", well))
 
 # bind all info data using get_info() - can see how it works in 00_functions.R
 d_info <- map_df(files, get_info)
@@ -73,7 +73,9 @@ d_info <- map_df(files, get_info)
 # bind all the runlog data - using get_runlog() - can see how it works in 00_functions.R
 d_runlog <- map_df(files, possibly(get_runlog))
 # check which files are not in d_runlog
-no_runlog <- files[!tools::file_path_sans_ext(basename(files)) %in% unique(d_runlog$file)]
+no_runlog <- files[
+  !tools::file_path_sans_ext(basename(files)) %in% unique(d_runlog$file)
+]
 
 # read in master plates
 # d_master_plates
@@ -87,7 +89,7 @@ d_layout <- map_df(files, get_plate_layout)
 d_od <- left_join(d_od, d_layout)
 
 # grab serial number from the info file
-d_serial <- filter(d_info,  str_detect(param, 'Serial number')) %>%
+d_serial <- filter(d_info, str_detect(param, 'Serial number')) %>%
   select(file, serial_no = value)
 
 # bind with od
@@ -95,11 +97,22 @@ d_od <- left_join(d_od, d_serial)
 
 # split the file name of d_od to its useful parts
 d_od <- d_od %>%
-  select(file, serial_no, measurement_time_s, wavelength_nm, well, raw_absorbance, id)
+  select(
+    file,
+    serial_no,
+    measurement_time_s,
+    wavelength_nm,
+    well,
+    raw_absorbance,
+    id
+  )
 
 # convert time to minutes and hours
-d_od <- mutate(d_od, measurement_time_min = measurement_time_s/60,
-               measurement_time_hr = measurement_time_min/60)
+d_od <- mutate(
+  d_od,
+  measurement_time_min = measurement_time_s / 60,
+  measurement_time_hr = measurement_time_min / 60
+)
 
 # save out data
 write.csv(d_od, file.path('data/processed', output), row.names = FALSE)

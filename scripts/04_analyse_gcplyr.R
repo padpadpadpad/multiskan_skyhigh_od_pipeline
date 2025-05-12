@@ -2,12 +2,11 @@
 # Purpose of script: Calculate growth rate metrics from processed data
 #
 # What this script does:
-# 1. Read in all data
-# 2. Correct for blanks
-# 3. Remove empty wells
-# 4. Calculate derivative for each well
-# 5. Calculate growth metrics and save them out
-# 6. Visualise growth metrics on growth curves
+# 1. Read in processed data from 03_process_od.R
+# 2. Remove noise at low ODs
+# 3. Calculate derivative for each well
+# 4. Calculate growth metrics and save them out
+# 5. Visualise growth metrics on growth curves
 #
 # Author: Dr. Daniel Padfield
 #

@@ -67,7 +67,7 @@ plate_ids <- unique(d_od$plate_id)
 pdf(
   file.path(
     'plots/first_look_plots',
-    paste('check_od_raw_', input_no_ext, '.pdf', sep = '')
+    paste(input_no_ext, '.pdf', sep = '')
   ),
   width = 10,
   height = 6.5

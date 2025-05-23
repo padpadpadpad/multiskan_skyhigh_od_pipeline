@@ -63,12 +63,8 @@ select(d, file, well, id, serial_no) %>%
 groupings <- c("file", "well", "serial_no", "id")
 
 # output name
-output <- paste('04_', output, sep = '')
-
-# window_width - set to calculate a rolling regression over the course of an hour
-measurements_every_X_min = 4
-window_width = 60 / measurements_every_X_min
-rm(measurements_every_X_min)
+output <- 'all_growth_models.rds'
+output <- paste('05_', output, sep = '')
 
 #---------------------#
 
@@ -362,7 +358,7 @@ saveRDS(fits, file.path('data/metrics', output))
 #---------------------#
 
 # make a plot to visualise every plate
-runs <- unique(d_filt$run)
+files <- unique(d_filt$file)
 
 fits <- separate(fits, id, into = groupings, sep = ':', remove = FALSE)
 
@@ -376,53 +372,45 @@ pdf(
   height = 6.5
 )
 
-for (i in 1:length(runs)) {
-  temp_od <- filter(d_filt, run == runs[i]) |>
+for (i in 1:length(files)) {
+  temp_od <- filter(d_filt, file == files[i]) |>
     mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
 
-  temp_temps <- unique(temp_od$temp)
+  temp_models <- filter(fits, file == files[i]) %>%
+    mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well)) %>%
+    pivot_longer(
+      cols = c(
+        fit_logistic,
+        fit_baranyi,
+        fit_gompertz,
+        fit_huang,
+        fit_richards
+      ),
+      names_to = 'model',
+      values_to = 'fit'
+    ) %>%
+    mutate(preds = map(fit, broom::augment)) %>%
+    unnest(preds)
 
-  # create a plot for each temperature
-  for (j in 1:length(temp_temps)) {
-    temp_od2 <- temp_od |>
-      filter(temp == temp_temps[j])
+  temp_id <- select(temp_od, column, row, id) %>%
+    distinct() %>%
+    mutate(x = 0, y = 1)
 
-    temp_models <- filter(fits, run == runs[i] & temp == temp_temps[j]) %>%
-      mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well)) %>%
-      pivot_longer(
-        cols = c(
-          fit_logistic,
-          fit_baranyi,
-          fit_gompertz,
-          fit_huang,
-          fit_richards
-        ),
-        names_to = 'model',
-        values_to = 'fit'
-      ) %>%
-      mutate(preds = map(fit, broom::augment)) %>%
-      unnest(preds)
+  # fmt: skip
+  temp_plot <- temp_od %>%
+    ggplot(aes(x = measurement_time_hr, y = od_cor)) +
+    geom_line(linewidth = 2, col = 'grey') +
+    geom_line(aes(x = measurement_time_hr, y = .fitted, col = model), temp_models, linewidth = 0.75) +
+    geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
+    facet_grid(column~row, switch = 'y') +
+    theme_bw() +
+    labs(title = paste('File:', files[i], sep = ' '),
+         x = 'Time (hr)',
+         y = 'Absorbance (OD600)') +
+    ylim(c(min(temp_od$od_cor[is.finite(temp_od$od_cor)]), 1.25)) +
+    NULL
 
-    temp_id <- select(temp_od2, column, row, id) %>%
-      distinct() %>%
-      mutate(x = 0, y = 1)
-
-    # fmt: skip
-    temp_plot <- temp_od2 %>%
-      ggplot(aes(x = measurement_time_hr, y = od_cor)) +
-      geom_line(linewidth = 2, col = 'grey') +
-      geom_line(aes(x = measurement_time_hr, y = .fitted, col = model), temp_models, linewidth = 0.75) +
-      geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
-      facet_grid(column~row, switch = 'y') +
-      theme_bw() +
-      labs(title = paste('Run:', runs[i], ';Temp:', temp_temps[j], 'ºC', sep = ' '),
-           x = 'Time (hr)',
-           y = 'Absorbance (OD600)') +
-      ylim(c(min(temp_od2$od_cor[is.finite(temp_od2$od_cor)]), 1.25)) +
-      NULL
-
-    print(temp_plot)
-  }
+  print(temp_plot)
 }
 
 dev.off()

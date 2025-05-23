@@ -169,47 +169,39 @@ files <- unique(d_filt$file)
 
 # open a pdf
 pdf(
-  file.path('plots', paste('check_gcplyr_log', '.pdf', sep = '')),
+  file.path('plots/metric_plots', paste('check_gcplyr_log', '.pdf', sep = '')),
   width = 10,
   height = 6.5
 )
 
-for (i in 1:length(runs)) {
-  temp_od <- filter(d_filt, run == runs[i]) |>
+for (i in 1:length(files)) {
+  temp_od <- filter(d_filt, file == files[i]) |>
     mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
 
-  temp_temps <- unique(temp_od$temp)
+  temp_params <- filter(d_sum, file == files[i]) %>%
+    mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
 
-  # create a plot for each temperature
-  for (j in 1:length(temp_temps)) {
-    temp_od2 <- temp_od |>
-      filter(temp == temp_temps[j])
+  temp_id <- select(temp_od, column, row, id) %>%
+    distinct() %>%
+    mutate(x = 0, y = 1)
 
-    temp_params <- filter(d_sum, run == runs[i] & temp == temp_temps[j]) %>%
-      mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
+  # fmt: skip
+  temp_plot <- temp_od %>%
+    ggplot(aes(x = measurement_time_hr, y = log(od_cor))) +
+    geom_line() +
+    geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
+    geom_point(aes(gr_time, log(gr_dens)), temp_params, col = 'red') +
+    geom_point(aes(max_time, log(max_dens)), temp_params, col = 'blue') +
+    geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
+    facet_grid(column~row, switch = 'y') +
+    theme_bw() +
+    labs(title = paste('File:', files[i], sep = ' '),
+         x = 'Time (hr)',
+         y = 'log Absorbance (OD600)') +
+    ylim(c(min(log(temp_od$od_cor)[is.finite(log(temp_od$od_cor))]), 1.25)) +
+    NULL
 
-    temp_id <- select(temp_od2, column, row, id) %>%
-      distinct() %>%
-      mutate(x = 0, y = 1)
-
-    # fmt: skip
-    temp_plot <- temp_od2 %>%
-        ggplot(aes(x = measurement_time_hr, y = log(od_cor))) +
-        geom_line() +
-        geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
-        geom_point(aes(gr_time, log(gr_dens)), temp_params, col = 'red') +
-        geom_point(aes(max_time, log(max_dens)), temp_params, col = 'blue') +
-        geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
-        facet_grid(column~row, switch = 'y') +
-        theme_bw() +
-        labs(title = paste('Run:', runs[i], ';Temp:', temp_temps[j], 'ºC', sep = ' '),
-             x = 'Time (hr)',
-             y = 'log Absorbance (OD600)') +
-        ylim(c(min(log(temp_od2$od_cor)[is.finite(log(temp_od2$od_cor))]), 1.25)) +
-        NULL
-
-    print(temp_plot)
-  }
+  print(temp_plot)
 }
 
 dev.off()
@@ -217,47 +209,42 @@ dev.off()
 # do the same plot but unlogged
 # open a pdf
 pdf(
-  file.path('plots', paste('check_gcplyr_nolog', '.pdf', sep = '')),
+  file.path(
+    'plots/metric_plots',
+    paste('check_gcplyr_nolog', '.pdf', sep = '')
+  ),
   width = 10,
   height = 6.5
 )
 
-for (i in 1:length(runs)) {
-  temp_od <- filter(d_filt, run == runs[i]) |>
+for (i in 1:length(files)) {
+  temp_od <- filter(d_filt, file == files[i]) |>
     mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
 
-  temp_temps <- unique(temp_od$temp)
+  temp_params <- filter(d_sum, file == files[i]) %>%
+    mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
 
-  # create a plot for each temperature
-  for (j in 1:length(temp_temps)) {
-    temp_od2 <- temp_od |>
-      filter(temp == temp_temps[j])
+  temp_id <- select(temp_od, column, row, id) %>%
+    distinct() %>%
+    mutate(x = 0, y = 1)
 
-    temp_params <- filter(d_sum, run == runs[i] & temp == temp_temps[j]) %>%
-      mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
+  # fmt: skip
+  temp_plot <- temp_od %>%
+    ggplot(aes(x = measurement_time_hr, y = od_cor)) +
+    geom_line() +
+    geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
+    geom_point(aes(gr_time, gr_dens), temp_params, col = 'red') +
+    geom_point(aes(max_time, max_dens), temp_params, col = 'blue') +
+    geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
+    facet_grid(column~row, switch = 'y') +
+    theme_bw() +
+    labs(title = paste('File:', files[i], sep = ' '),
+         x = 'Time (hr)',
+         y = 'log Absorbance (OD600)') +
+    ylim(c(min(temp_od$od_cor[is.finite(temp_od$od_cor)]), 1.25)) +
+    NULL
 
-    temp_id <- select(temp_od2, column, row, id) %>%
-      distinct() %>%
-      mutate(x = 0, y = 1)
-
-    # fmt: skip
-    temp_plot <- temp_od2 %>%
-      ggplot(aes(x = measurement_time_hr, y = od_cor)) +
-      geom_line() +
-      geom_vline(aes(xintercept = lag_time), temp_params, col = 'red') +
-      geom_point(aes(gr_time, gr_dens), temp_params, col = 'red') +
-      geom_point(aes(max_time, max_dens), temp_params, col = 'blue') +
-      geom_label(aes(x = 0, y = 1.25, label = id), temp_id, hjust = 0, vjust = 0.8, label.size = NA) +
-      facet_grid(column~row, switch = 'y') +
-      theme_bw() +
-      labs(title = paste('Run:', runs[i], ';Temp:', temp_temps[j], 'ºC', sep = ' '),
-           x = 'Time (hr)',
-           y = 'Absorbance (OD600)') +
-      ylim(c(min(temp_od2$od_cor[is.finite(temp_od2$od_cor)]), 1.25)) +
-      NULL
-
-    print(temp_plot)
-  }
+  print(temp_plot)
 }
 
 dev.off()

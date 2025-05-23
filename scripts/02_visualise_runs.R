@@ -20,18 +20,18 @@
 # ---------------------------
 
 # if librarian is not installed, install it
-if (!requireNamespace("librarian", quietly = TRUE)){
+if (!requireNamespace("librarian", quietly = TRUE)) {
   install.packages("librarian")
 }
 
 # if BiocManager is not installed, install it
-if (!requireNamespace("BiocManager", quietly = TRUE)){
-install.packages("BiocManager")
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
 }
 
 # if Biobase is not installed, install it from Bioconductor
-if (!requireNamespace("Biobase", quietly = TRUE)){
-BiocManager::install("Biobase")
+if (!requireNamespace("Biobase", quietly = TRUE)) {
+  BiocManager::install("Biobase")
 }
 
 # load packages
@@ -46,6 +46,8 @@ librarian::shelf(tidyverse)
 # set run, this will be used to label the plots
 # should be the same as output from 01_process_od.R
 input <- 'output.csv'
+input <- paste('01_', input, sep = '')
+
 input_no_ext <- tools::file_path_sans_ext(input)
 
 # change this as needed
@@ -62,32 +64,38 @@ d_od <- d_od %>%
 plate_ids <- unique(d_od$plate_id)
 
 # open a pdf
-pdf(file.path('plots/first_look_plots', paste('check_od_raw_', input_no_ext, '.pdf', sep = '')), width = 10, height = 6.5)
+pdf(
+  file.path(
+    'plots/first_look_plots',
+    paste('check_od_raw_', input_no_ext, '.pdf', sep = '')
+  ),
+  width = 10,
+  height = 6.5
+)
 
-for(i in 1:length(plate_ids)){
-  
-  temp_od <- d_od |> 
+for (i in 1:length(plate_ids)) {
+  temp_od <- d_od |>
     filter(plate_id == plate_ids[i]) |>
-    mutate(column = str_extract(well, "[A-Z]+" ),
-           row = parse_number(well))
-  
+    mutate(column = str_extract(well, "[A-Z]+"), row = parse_number(well))
+
   temp_id <- select(temp_od, column, row, id) %>%
     distinct() %>%
     mutate(x = 0, y = 1)
-    
+
   temp_plot <- temp_od %>%
     ggplot(aes(x = measurement_time_hr, y = raw_absorbance)) +
     geom_line() +
     geom_text(aes(x = 0, y = 1, label = id), temp_id, hjust = 0) +
-    facet_grid(column~row, switch = 'y') +
+    facet_grid(column ~ row, switch = 'y') +
     theme_bw() +
-    labs(title = paste('Plate ID:', plate_ids[i]),
-         x = 'Time (hr)',
-         y = 'Absorbance (OD600)') +
+    labs(
+      title = paste('Plate ID:', plate_ids[i]),
+      x = 'Time (hr)',
+      y = 'Absorbance (OD600)'
+    ) +
     ylim(c(0, 1.25))
-  
-  print(temp_plot)
 
+  print(temp_plot)
 }
 
 dev.off()

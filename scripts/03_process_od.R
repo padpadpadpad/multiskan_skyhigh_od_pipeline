@@ -59,19 +59,42 @@ select(d, file, well, id, serial_no) %>%
   nrow()
 
 # split file identifier
+# what do the bits between the underscores in your file mean?
+set_file_id <- c('run', 'temp')
 d <- separate(d, file, into = c('run', 'temp'), sep = '_', remove = FALSE)
 
 # set up your grouping variables to get each individual well for each plate
 # this bit is interactive
-groupings <- c("file", "run", "temp", "well", "serial_no", "id")
+groupings <- c("file", "run", "well", "serial_no", "id", set_file_id)
 
 # set blank method: options are: well_specific or blank_median
 blank_method <- "blank_median"
 
+# identity of blanks: what is the unique ID you give to your blank wells
+blank_id <- 'C'
+
 # output name
 output <- 'all_growth_processed.csv'
+output <- paste('03_', output, sep = '')
 
 #---------------------#
+
+#--------------------------------------------------------------#
+# remove samples because of biologically implausible signal ####
+#--------------------------------------------------------------#
+
+# from the plots in first_look_plots, you can remove some wells that have biologically implausible signal (e.g. massive spikes) that are not going to be easy to model and will give poor estimates
+# if some of the control/blank wells are wrong you can remove them too
+
+# create unique ID of file and well
+d_filt <- d %>%
+  mutate(plate_well_id = paste(file, well, sep = '_'))
+
+to_remove <- c()
+
+# remove these wells
+d_filt <- d_filt %>%
+  filter(!plate_well_id %in% to_remove)
 
 #---------------------#
 # calculate blanks ####
@@ -81,7 +104,7 @@ output <- 'all_growth_processed.csv'
 if (blank_method == "well_specific") {
   # take the first three time points
   # average per grouping
-  d_blank <- d %>%
+  d_blank <- d_filt %>%
     group_by(across(all_of(groupings))) %>%
     filter(measurement_time_hr %in% sort(measurement_time_hr)[1:3]) %>%
     summarise(
@@ -95,16 +118,11 @@ if (blank_method == "well_specific") {
 
 # name outside wells
 # fmt: skip
-outside_wells <- c('A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12',
-                   'B1', 'B12', 'C1', 'C12', 'D1', 'D12', 'E1', 'E12',
-                   'F1', 'F12', 'G1', 'G12', 'H1', 'H2', 'H3', 'H4',
-                   'H5', 'H6', 'H7', 'H8', 'H9', 'H10', 'H11')
 
 # do blank subtraction
 if (blank_method == "blank_median") {
-  d_blank <- d %>%
-    filter(!well %in% outside_wells) %>%
-    filter(substr(id, 1, 1) == "X") %>%
+  d_blank <- d_filt %>%
+    filter(substr(id, 1, 1) == blank_id) %>%
     group_by(across(all_of(groupings[!groupings %in% c('well', 'id')]))) %>%
     summarise(
       ave_blank = median(raw_absorbance),
@@ -121,32 +139,16 @@ hist(d_blank$ave_blank)
 #-----------------#
 
 # add the blank to the data
-d <- left_join(d, d_blank)
+d_filt <- left_join(d_filt, d_blank)
 
 # make corrected absorbance
-d <- mutate(d, od_cor = raw_absorbance - ave_blank)
+d_filt <- mutate(d_filt, od_cor = raw_absorbance - ave_blank)
 
 # set negative values to 0
-d <- mutate(d, od_cor = ifelse(od_cor < 0, 0, od_cor))
+d_filt <- mutate(d_filt, od_cor = ifelse(od_cor < 0, 0, od_cor))
 
 # remove all wells that are blanks - need to edit this code maybe
-d_filt <- filter(d, substr(id, 1, 1) != "X")
-
-#--------------------------------------------------------------#
-# remove samples because of biologically implausible signal ####
-#--------------------------------------------------------------#
-
-# from the plots in first_look_plots, you can remove some wells that have biologically implausible signal (e.g. massive spikes) that are not going to be easy to model and will give poor estimates
-
-# create unique ID of file and well
-d_filt <- d_filt %>%
-  mutate(plate_well_id = paste(file, well, sep = '_'))
-
-to_remove <- c()
-
-# remove these wells
-d_filt <- d_filt %>%
-  filter(!plate_well_id %in% to_remove)
+d_filt <- filter(d_filt, substr(id, 1, 1) != blank_id)
 
 #------------------#
 # save out data ####

@@ -58,18 +58,12 @@ select(d, file, well, id, serial_no) %>%
   distinct() %>%
   nrow()
 
-# split file identifier
-d <- separate(d, file, into = c('run', 'temp'), sep = '_', remove = FALSE)
-
 # set up your grouping variables to get each individual well for each plate
 # this bit is interactive
-groupings <- c("file", "run", "temp", "well", "serial_no", "id")
-
-# set blank method: options are: well_specific or blank_median
-blank_method <- "blank_median"
+groupings <- c("file", "well", "serial_no", "id")
 
 # output name
-output <- 'all_growth_models.rds'
+output <- paste('04_', output, sep = '')
 
 # window_width - set to calculate a rolling regression over the course of an hour
 measurements_every_X_min = 4
@@ -78,85 +72,31 @@ rm(measurements_every_X_min)
 
 #---------------------#
 
-#---------------------#
-# calculate blanks ####
-#---------------------#
-
-# method 1: create a well-specific blank
-if (blank_method == "well_specific") {
-  # take the first three time points
-  # average per grouping
-  d_blank <- d %>%
-    group_by(across(all_of(groupings))) %>%
-    filter(measurement_time_hr %in% sort(measurement_time_hr)[1:3]) %>%
-    summarise(
-      ave_blank = mean(raw_absorbance),
-      sd_blank = sd(raw_absorbance),
-      .groups = 'drop'
-    )
-}
-
-# method 2 Calculate blank from average of all blank wells in each plate
-
-# name outside wells
-# fmt: skip
-outside_wells <- c('A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12',
-                   'B1', 'B12', 'C1', 'C12', 'D1', 'D12', 'E1', 'E12',
-                   'F1', 'F12', 'G1', 'G12', 'H1', 'H2', 'H3', 'H4',
-                   'H5', 'H6', 'H7', 'H8', 'H9', 'H10', 'H11')
-
-# do blank subtraction
-if (blank_method == "blank_median") {
-  d_blank <- d %>%
-    filter(!well %in% outside_wells) %>%
-    filter(substr(id, 1, 1) == "X") %>%
-    group_by(across(all_of(groupings[!groupings %in% c('well', 'id')]))) %>%
-    summarise(
-      ave_blank = median(raw_absorbance),
-      sd_blank = sd(raw_absorbance),
-      .groups = 'drop'
-    )
-}
-
-# visualise average blank
-hist(d_blank$ave_blank)
-
 #-----------------#
 # wrangle data ####
 #-----------------#
 
-# add the blank to the data
-d <- left_join(d, d_blank)
+# remove any od values below certain value - remove some noise
+# generally leave this in for the logistic growth models
+d_filt <- filter(d, od_cor > 0.005)
 
-# make corrected absorbance
-d <- mutate(d, od_cor = raw_absorbance - ave_blank)
+# quick plot of data ####
+d_filt %>%
+  ggplot(aes(
+    x = measurement_time_hr,
+    y = od_cor,
+    group = interaction(well)
+  )) +
+  geom_line(alpha = 0.3) +
+  facet_wrap(~file) +
+  theme_bw()
 
-# set negative values to 0
-d <- mutate(d, od_cor = ifelse(od_cor < 0, 0, od_cor))
+# calculate the expected number of rows in the output - 1 per group
+n_expected <- select(d_filt, all_of(groupings)) %>%
+  distinct() %>%
+  nrow()
+n_expected
 
-# remove all wells that are blanks - need to edit this code maybe
-d_filt <- filter(d, substr(id, 1, 1) != "X")
-
-#--------------------------------------------------------------#
-# remove samples because of biologically implausible signal ####
-#--------------------------------------------------------------#
-
-# from the plots in first_look_plots, you can remove some wells that have biologically implausible signal (e.g. massive spikes) that are not going to be easy to model and will give poor estimates
-
-# create unique ID of file and well
-d_filt <- d_filt %>%
-  mutate(plate_well_id = paste(file, well, sep = '_'))
-
-to_remove <- c(
-  "Run2_33deg_E2",
-  "Run2_33deg_B10",
-  "Run2_39deg_D5",
-  "Run2_39deg_F10"
-)
-
-# remove these wells
-d_filt <- d_filt %>%
-  filter(!plate_well_id %in% to_remove)
 
 #----------------------------#
 # calculate model metrics ####

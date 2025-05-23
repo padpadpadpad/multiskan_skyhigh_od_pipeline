@@ -55,6 +55,7 @@ files <- list.files('data/raw', full.names = TRUE, pattern = 'xlsx')
 
 # set output name
 output <- 'output.csv'
+output <- paste('01_', output, sep = '')
 
 #-----------------#
 # read in data ####

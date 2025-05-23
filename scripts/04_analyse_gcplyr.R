@@ -48,12 +48,12 @@ librarian::shelf(tidyverse, growthrates, gcplyr)
 #---------------------#
 
 # name of files to read in
-file_names <- list.files('data/processed', full.names = TRUE)
+file_names <- list.files('data/processed', full.names = TRUE, pattern = '03_')
 
 # read in data
 d <- file_names %>% map_df(read.csv)
 
-# split file identifier if needed
+# split file identifier if needed, might have been done in 03_process_od.R
 
 # check the number of unique combinations there should be
 select(d, file, well, id, serial_no) %>%
@@ -64,103 +64,42 @@ select(d, file, well, id, serial_no) %>%
 # this bit is interactive
 groupings <- c("file", "well", "serial_no", "id")
 
-# set blank method: options are: well_specific or blank_median
-blank_method <- "blank_median"
-
 # output name
 output <- 'all_growth_metrics.csv'
+output <- paste('04_', output, sep = '')
 
 # window_width - set to calculate a rolling regression over the course of an hour
-measurements_every_X_min = 4
+measurements_every_X_min = 10
 window_width = 60 / measurements_every_X_min
+
+# if window_width is even, subtract 1
+if (window_width %% 2 == 0) {
+  window_width = window_width - 1
+}
+
 rm(measurements_every_X_min)
 
-#---------------------#
-
-#---------------------#
-# calculate blanks ####
-#---------------------#
-
-# method 1: create a well-specific blank
-if (blank_method == "well_specific") {
-  # take the first three time points
-  # average per grouping
-  d_blank <- d %>%
-    group_by(across(all_of(groupings))) %>%
-    filter(measurement_time_hr %in% sort(measurement_time_hr)[1:3]) %>%
-    summarise(
-      ave_blank = mean(raw_absorbance),
-      sd_blank = sd(raw_absorbance),
-      .groups = 'drop'
-    )
-}
-
-# method 2 Calculate blank from average of all blank wells in each plate
-# use the median
-# assumes all blanks start with X
-if (blank_method == "blank_median") {
-  d_blank <- d %>%
-    filter(!well %in% outside_wells) %>%
-    filter(substr(id, 1, 1) == "X") %>%
-    group_by(across(all_of(groupings[!groupings %in% c('well', 'id')]))) %>%
-    summarise(
-      ave_blank = median(raw_absorbance),
-      sd_blank = sd(raw_absorbance),
-      .groups = 'drop'
-    )
-}
-
-# visualise average blank
-hist(d_blank$ave_blank)
 
 #-----------------#
 # wrangle data ####
 #-----------------#
 
-# add the blank to the data
-d <- left_join(d, d_blank)
-
-# make corrected absorbance
-d <- mutate(d, od_cor = raw_absorbance - ave_blank)
-
-# set negative values to 0
-d <- mutate(d, od_cor = ifelse(od_cor < 0, 0, od_cor))
-
-# remove all wells that are blanks - need to edit this code maybe
-d_filt <- filter(d, substr(id, 1, 1) != "X")
-
 # remove any od values below certain value - remove some noise
-d_filt2 <- filter(d_filt, od_cor > 0.005)
+d_filt <- filter(d, od_cor > 0.005)
 
 # quick plot of data ####
 d_filt %>%
   ggplot(aes(
     x = measurement_time_hr,
     y = od_cor,
-    group = interaction(well, run)
+    group = interaction(well)
   )) +
   geom_line(alpha = 0.3) +
-  facet_wrap(~temp) +
+  facet_wrap(~file) +
   theme_bw()
 
-#--------------------------------------------------------------#
-# remove samples because of biologically implausible signal ####
-#--------------------------------------------------------------#
-
-# from the plots in first_look_plots, you can remove some wells that have biologically implausible signal (e.g. massive spikes) that are not going to be easy to model and will give poor estimates
-
-# create unique ID of file and well
-d_filt2 <- d_filt2 %>%
-  mutate(plate_well_id = paste(file, well, sep = '_'))
-
-to_remove <- c()
-
-# remove these wells
-d_filt2 <- d_filt2 %>%
-  filter(!plate_well_id %in% to_remove)
-
 # calculate the expected number of rows in the output - 1 per group
-n_expected <- select(d_filt2, all_of(groupings)) %>%
+n_expected <- select(d_filt, all_of(groupings)) %>%
   distinct() %>%
   nrow()
 n_expected
@@ -175,7 +114,7 @@ n_expected
 # a key parameter here is window_width_n, which is the number of time points to use in the calculation
 
 # this group by is the important step here, needs to contain all the variables to get a single well
-d_filt2 <- d_filt2 %>%
+d_filt <- d_filt %>%
   group_by(across(all_of(groupings))) %>%
   mutate(
     deriv_percap = calc_deriv(
@@ -190,7 +129,7 @@ d_filt2 <- d_filt2 %>%
   ungroup()
 
 # calculate growth metrics
-d_sum <- d_filt2 %>%
+d_sum <- d_filt %>%
   group_by(across(all_of(groupings))) %>%
   summarise(
     min_dens = first_minima(od_cor, return = 'y'),
@@ -226,7 +165,7 @@ write.csv(d_sum, file.path('data/metrics', output), row.names = FALSE)
 #----------------------#
 
 # make a plot to visualise every plate
-runs <- unique(d_filt$run)
+files <- unique(d_filt$file)
 
 # open a pdf
 pdf(

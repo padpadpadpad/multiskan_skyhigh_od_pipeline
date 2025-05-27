@@ -10,14 +10,17 @@ I would love for this repository to be improved by you! Coding is much more fun 
 
 - Download this repository and place it in the folder where you are collecting data on a new project.
 - Rename `multiskan_skyhigh_od_pipeline.Rproj` to better reflect the active project.
-- Put raw data files into `data/raw`.
+- Put raw data files into `data/raw`. **DO NOT PUT RAW FILES ANYWHERE ELSE.**
 - Go through the scripts in numbered order to process your data.
 - Make edits to the scripts as necessary to suit your needs.
-- At the end of **03_analyse_gcplyr.R** and **04_analyse_growthrates.R** you should have a processed dataset of growth metrics and growth models to use in downstream analyses.
+- At the end of **04_analyse_gcplyr.R** and **05_analyse_growthrates.R** you should have a processed dataset of growth metrics and growth models to use in downstream analyses.
 
-## Naming raw files
 
-How you name raw files is key for analysing data spread across multiple files. Naming in a consistent way allows you to combine data from multiple files, and allows you to describe metadata. Here are my recommendations, but generally you just need to be consistent:
+## Naming raw and processed files
+
+How you name files is key for analysing data spread across multiple files. Naming in a consistent way allows you to combine data from multiple files, and allows you to describe metadata. The processed files from this pipeline are labelled with the numbers of the script that made them, allowing you to keep track of output more easily. For example, **01_data.csv** will have been made from **01_read_od.R**.
+
+For raw files, here are my recommendations, but generally you just need to be consistent:
 
 - Use lowercase letters, with underscores separating treatments.
 - Start each name with "run**A**" where **A** is the run number. This allows all the raw and processed data through the scripts to be easily referenced.
@@ -30,7 +33,7 @@ To be able to assign meta-data to each plate, you need to go into each raw file 
 
 ## Correcting blanks
 
-Currently, we assume blank wells start with an **"X"**, but this can be changed in **03_analyse.R**.
+Currently, we assume blank wells start with an **"C"**, but this can be changed in **03_process_od.R**.
 
 ## The pipeline
 
